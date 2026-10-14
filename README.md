@@ -12,6 +12,14 @@ Languages: **English** first, then **العربية** (second half of this file)
 
 ## 0. Deployment cheat sheet
 
+**Portainer (stack from a Git repository)** - no `.env` file is needed: add the variables under the
+stack's *Environment variables* (`FACE_API_KEY_1`, `FACE_HMAC_SECRET_1`, `FACE_ALLOWED_IPS`, optionally
+`FACE_WORKERS`, `FACE_BIND`). `FACE_DOMAIN` is only needed with the TLS profile: add `COMPOSE_PROFILES=tls`
+and `FACE_DOMAIN=face.yourdomain.com`, and tick *Enable relative path volumes* (Caddy mounts `./Caddyfile`).
+If you already have a reverse proxy (Nginx Proxy Manager, Traefik, ...), leave the profile off, set
+`FACE_BIND=0.0.0.0` (or the private IP) and keep `FACE_ALLOWED_IPS` restricted to the gateway / proxy.
+Error `required variable FACE_DOMAIN is missing a value` = an older compose file: pull the latest commit.
+
 **A. On the face server** (fresh Ubuntu 22.04 / 24.04, 2-4 vCPU, 2 GB RAM, ideally inside KSA)
 
 ```bash

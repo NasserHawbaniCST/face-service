@@ -1,11 +1,15 @@
 # Face service.
 #
-#   cp .env.example .env && edit it         # keys, FACE_ALLOWED_IPS
-#   docker compose up -d --build            # service only, published on ${FACE_BIND}:8765
+# Two ways to supply the settings (both work, they can be mixed):
+#   * docker compose:  cp .env.example .env && edit it, then  docker compose up -d --build
+#   * Portainer / any UI that injects variables: add them under "Environment variables" of the stack
+#     (FACE_API_KEY_1, FACE_HMAC_SECRET_1, FACE_ALLOWED_IPS, FACE_DOMAIN, ...). No .env file is needed.
+#
+# Service only: published on ${FACE_BIND}:8765 (loopback by default).
 #
 # With automatic HTTPS (Caddy + Let's Encrypt; needs a DNS name pointing at this server and
 # ports 80/443 open):
-#   docker compose --profile tls up -d --build
+#   docker compose --profile tls up -d --build        # or, in Portainer: env var COMPOSE_PROFILES=tls
 # then the gateway uses  https://$FACE_DOMAIN  and you may keep FACE_BIND=127.0.0.1.
 name: face-service
 
@@ -14,7 +18,29 @@ services:
     build: .
     image: face-service:1.0.0
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false        # Portainer / CI: variables come from the stack environment instead
+    environment:
+      # pass-through of the stack/shell variables (an empty value means "not set" for the app)
+      FACE_API_KEY_1: ${FACE_API_KEY_1:-}
+      FACE_HMAC_SECRET_1: ${FACE_HMAC_SECRET_1:-}
+      FACE_API_KEY_2: ${FACE_API_KEY_2:-}
+      FACE_HMAC_SECRET_2: ${FACE_HMAC_SECRET_2:-}
+      FACE_HMAC_SECRET: ${FACE_HMAC_SECRET:-}
+      FACE_ALLOWED_IPS: ${FACE_ALLOWED_IPS:-}
+      FACE_TRUSTED_PROXIES: ${FACE_TRUSTED_PROXIES:-}
+      FACE_WORKERS: ${FACE_WORKERS:-2}
+      FACE_CV_THREADS: ${FACE_CV_THREADS:-1}
+      FACE_MAX_QUEUE: ${FACE_MAX_QUEUE:-}
+      FACE_REQUEST_TIMEOUT: ${FACE_REQUEST_TIMEOUT:-20}
+      FACE_RATE_LIMIT_PER_MIN: ${FACE_RATE_LIMIT_PER_MIN:-120}
+      FACE_AUTH_FAIL_LIMIT_PER_MIN: ${FACE_AUTH_FAIL_LIMIT_PER_MIN:-30}
+      FACE_MAX_BODY_BYTES: ${FACE_MAX_BODY_BYTES:-4194304}
+      FACE_MAX_FRAMES: ${FACE_MAX_FRAMES:-6}
+      FACE_MAX_FRAME_BYTES: ${FACE_MAX_FRAME_BYTES:-409600}
+      FACE_TS_TOLERANCE: ${FACE_TS_TOLERANCE:-60}
+      FACE_LOG_LEVEL: ${FACE_LOG_LEVEL:-INFO}
     ports:
       # loopback by default: expose to the network ONLY behind TLS (Caddy / nginx) or a private network
       - "${FACE_BIND:-127.0.0.1}:8765:8765"
@@ -50,7 +76,9 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      FACE_DOMAIN: ${FACE_DOMAIN:?set FACE_DOMAIN in .env}
+      # compose interpolates EVERY service, even one whose profile is off, so this must have a
+      # default (the old "required variable" form made a deploy without FACE_DOMAIN fail).
+      FACE_DOMAIN: ${FACE_DOMAIN:-localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
