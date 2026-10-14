@@ -1,0 +1,49 @@
+# /etc/systemd/system/face-service.service
+#
+#   sudo useradd --system --no-create-home --shell /usr/sbin/nologin face
+#   sudo cp -r face_service /opt/face_service && sudo chown -R root:root /opt/face_service
+#   python3 -m venv /opt/face_service/venv && /opt/face_service/venv/bin/pip install -r /opt/face_service/requirements.txt
+#   sudo install -m 600 -o root -g face /opt/face_service/.env.example /etc/face-service.env   # then edit it
+#   sudo systemctl daemon-reload && sudo systemctl enable --now face-service
+[Unit]
+Description=Face processing microservice (OpenCV YuNet + SFace)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=face
+Group=face
+WorkingDirectory=/opt/face_service
+# Credentials + tuning. Mode 640, owner root:face (never world readable).
+EnvironmentFile=/etc/face-service.env
+# ONE process: the replay cache / rate limits are in memory; parallelism = FACE_WORKERS.
+# Bind to loopback and put nginx/Caddy (TLS) in front, or bind a private address.
+ExecStart=/opt/face_service/venv/bin/uvicorn --factory app.main:create_app --host 127.0.0.1 --port 8765 --no-access-log
+Restart=always
+RestartSec=3
+TimeoutStopSec=20
+
+# resource limits (adjust to the machine: ~150 MB + ~50 MB per FACE_WORKERS)
+MemoryMax=1G
+TasksMax=256
+
+# hardening - the service is stateless and writes nothing
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,66 @@
+# Face service.
+#
+#   cp .env.example .env && edit it         # keys, FACE_ALLOWED_IPS
+#   docker compose up -d --build            # service only, published on ${FACE_BIND}:8765
+#
+# With automatic HTTPS (Caddy + Let's Encrypt; needs a DNS name pointing at this server and
+# ports 80/443 open):
+#   docker compose --profile tls up -d --build
+# then the gateway uses  https://$FACE_DOMAIN  and you may keep FACE_BIND=127.0.0.1.
+name: face-service
+
+services:
+  face:
+    build: .
+    image: face-service:1.0.0
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      # loopback by default: expose to the network ONLY behind TLS (Caddy / nginx) or a private network
+      - "${FACE_BIND:-127.0.0.1}:8765:8765"
+    read_only: true            # nothing is ever written: the service is stateless
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    pids_limit: 256
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ---- optional TLS front (profile "tls") -----------------------------------
+  caddy:
+    profiles: ["tls"]
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      face:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      FACE_DOMAIN: ${FACE_DOMAIN:?set FACE_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  caddy_data:
+  caddy_config:

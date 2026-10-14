@@ -1,0 +1,30 @@
+# Used only with:  docker compose --profile tls up -d
+# Caddy obtains and renews the certificate for {$FACE_DOMAIN} automatically.
+{$FACE_DOMAIN} {
+	encode zstd gzip
+
+	# keep in step with FACE_MAX_BODY_BYTES (the service enforces its own limit too)
+	request_body {
+		max_size 5MB
+	}
+
+	# only the API: nothing else is proxied
+	@api path /v1/analyze /health
+	handle @api {
+		reverse_proxy face:8765 {
+			header_up X-Forwarded-For {remote_host}
+			transport http {
+				read_timeout 30s
+			}
+		}
+	}
+	handle {
+		respond 404
+	}
+
+	# the access log contains addresses + paths only (never bodies)
+	log {
+		output stdout
+		format console
+	}
+}

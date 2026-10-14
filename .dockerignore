@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+__pycache__/
+*.pyc
+tests/
+.pytest_cache/
+README.md
+docker-compose.yml
+Caddyfile
+deploy/
